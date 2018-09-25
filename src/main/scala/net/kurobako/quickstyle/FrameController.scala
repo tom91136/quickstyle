@@ -17,15 +17,20 @@ class FrameController(ctx: AppContext[IO]) {
 			view <- Stream.eval(FXIO {new View})
 			_ <- Stream.eval(attach(view.root))
 			_ <- joinAndDrain(
+				Stream.eval(addPreview(view)),
 				eventF(view.exit.onAction).evalMap(_ => ctx.exitSignal.set(true)),
-				eventF(view.addSbs.onAction)
-					.mapAsync(Int.MaxValue) { _ =>
-						new PreviewController().effects(n => FXIO {view.frames.items += n}).compile.drain
-					}
+				eventF(view.addSbs.onAction).mapAsync(Int.MaxValue)(_ => addPreview(view))
 			)
+			_ <- Stream.eval(IO{println("Died")})
 		} yield ()
 	}
 
+	private def addPreview(view: View)(implicit cs : ContextShift[IO], timer: Timer[IO]) =
+		new PreviewController()
+		.effects(
+			n => FXIO {view.frames.items += n},
+			n => FXIO {view.frames.items -= n})
+		.compile.drain
 
 }
 object FrameController {

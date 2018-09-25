@@ -14,7 +14,7 @@ import net.kurobako.quickstyle.PreviewController.View
 import net.kurobako.quickstyle.component.FXSchedulers._
 import scalafx.Includes._
 import scalafx.scene.control.{Button, Label, ScrollPane, TextField}
-import scalafx.scene.layout.{Priority, StackPane, VBox}
+import scalafx.scene.layout.{GridPane, Priority, StackPane, VBox}
 import scalafx.scene.{Node, Parent, SubScene}
 
 import scala.concurrent.duration._
@@ -22,26 +22,32 @@ import scala.concurrent.duration._
 class PreviewController {
 
 
-	def effects(attach: Parent => IO[Unit])(implicit cs: ContextShift[IO], timer: Timer[IO]): Stream[IO, Unit] = {
+	def effects(attach: Parent => IO[Unit],
+				detach: Parent => IO[Unit])(implicit cs: ContextShift[IO],
+											timer: Timer[IO]): Stream[IO, Unit] = {
 
 		for {
 			view <- Stream.eval(FXIO {new View})
-			_ <- Stream.eval(attach(view.root))
-			_ <- propF(view.url.text, consInit = true)
-				.through(streams.switchMap { url =>
-					EitherT.fromOption[IO](url.filterNot(_.isBlank), "Empty path")
-						.flatMap(FileM.checked[IO](_).attemptT.leftMap(_.getMessage))
-						.mapK(IoToStream)
-						.semiflatMap(f => Stream(f) ++
-										  watch[IO](f.nioPath).debounce(100 millisecond).as(f))
-						.value
-						.flatMap(ef => Stream.eval(update(view, ef)))
-				})
+			_ <- Stream.eval(attach(view.root) *> FXIO {view.url.requestFocus()})
 
+			_ <- joinAndDrain(
+				Stream.eval(loadFxml().flatMap { p => FXIO {view.scene.root = p} }),
+				eventF(view.close.onAction).flatMap(_ => Stream.eval(detach(view.root))),
+				propF(view.url.text, consInit = true)
+					.through(streams.switchMap { url =>
+						EitherT.fromOption[IO](url.filterNot(_.isBlank), "Empty path")
+							.flatMap(FileM.checked[IO](_).attemptT.leftMap(_.getMessage))
+							.mapK(IoToStream)
+							.semiflatMap(f => Stream(f) ++
+											  watch[IO](f.nioPath).debounce(100 millisecond).as(f))
+							.value
+							.flatMap(ef => Stream.eval(update(view, ef)))
+					})
+			)
 		} yield ()
 	}
 
-	def update(view: View, file: Either[String, FileM[IO]]) =
+	private def update(view: View, file: Either[String, FileM[IO]]) =
 		EitherT.fromEither[IO](file).semiflatMap(f => for {
 			size <- f.size
 			changed <- f.lastModified
@@ -50,17 +56,21 @@ class PreviewController {
 			   |Modified : ${changed.toString}""".stripMargin)
 			.merge.flatMap(x => FXIO {view.status.text = x}) *>
 		file.fold(err => FXIO {new Label(s"($err)")}, mkPreview(view, _))
-			.flatMap { x => FXIO {view.frame.children = x} }
 
 
-	def mkPreview(view: View, file: FileM[IO]): IO[Node] = {
+	private def mkPreview(view: View, file: FileM[IO]): IO[Unit] = {
 		FXIO {
 			println(s"Using stylesheet: ${file.file.url.toExternalForm}")
-			StyleManager.errorsProperty().onChange( println(StyleManager.getErrors))
+			//			StyleManager.getInstance().forget(view.scene)
+			//			StyleManager.getInstance()
+			//			StyleManager.errorsProperty().onChange(println(StyleManager.getErrors))
+			view.scene.userAgentStylesheet = ""
 			view.scene.userAgentStylesheet = file.file.url.toExternalForm
-			view.scene
 		}
 	}
+
+	private def loadFxml() =
+		FXIO(FXMLLoader.load[javafx.scene.Parent](Resources.getResource("ui-mosaic.fxml")))
 
 
 }
@@ -69,21 +79,24 @@ object PreviewController {
 
 	class View {
 
-
-	
 		val url   : TextField = new TextField
 		val status: Label     = new Label
 		val frame : StackPane = new StackPane
-		
-		val scene: SubScene = new SubScene(0, 0){
-			root = FXMLLoader.load(Resources.getResource("ui-mosaic.fxml")) : javafx.scene.Parent
+		val close : Button    = new Button
+
+		val scene: SubScene = new SubScene(0, 0) {
 			width <== frame.width
 			height <== frame.height
+			frame.children = this
 		}
 
-		val root  : VBox      = new VBox(
-			new VBox(url, status) {styleClass += "tool-bar"},
-			new ScrollPane{
+		val root: VBox = new VBox(
+
+			new GridPane {
+				children = Seq(url, status, close)
+				styleClass += "tool-bar"
+			},
+			new ScrollPane {
 				content = frame
 				fitToHeight = true
 				fitToWidth = true
