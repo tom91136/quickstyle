@@ -88,7 +88,7 @@ lazy val quickstyle = project.in(file(".")).settings(
 	addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
 	addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.2.4"),
 	resolvers += Resolver.sonatypeRepo("releases"),
-	mainClass in Compile := Some("net.kurobako.deltacc.Application"),
+	mainClass in Compile := Some("net.kurobako.quickstyle.Application"),
 	jdkPackagerType := "installer",
 	libraryDependencies ++= Seq(
 
@@ -96,13 +96,14 @@ lazy val quickstyle = project.in(file(".")).settings(
 
 		"com.github.pathikrit" %% "better-files" % "3.4.0",
 		"net.kurobako" %% "better-monadic-files" % "0.1.0-SNAPSHOT",
+		"net.kurobako.gesturefx" % "gesturefx" % "0.2.0",
 
 
 		"com.chuusai" %% "shapeless" % "2.3.3",
 		"org.typelevel" %% "cats-core" % "1.4.0",
 		"org.typelevel" %% "cats-effect" % "1.0.0",
-		"co.fs2" %% "fs2-core" % "1.0.0-M5",
-		"co.fs2" %% "fs2-io" % "1.0.0-M5",
+		"co.fs2" %% "fs2-core" % "1.0.0-RC1",
+		"co.fs2" %% "fs2-io" % "1.0.0-RC1",
 		"io.estatico" %% "newtype" % "0.4.2",
 
 		"io.chrisdavenport" %% "log4cats-slf4j" % "0.1.1",
