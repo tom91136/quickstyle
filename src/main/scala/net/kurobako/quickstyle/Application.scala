@@ -6,9 +6,9 @@ import com.google.common.base.Throwables
 import com.google.common.io.Resources
 import fs2._
 import fs2.concurrent.{Enqueue, Queue, SignallingRef}
-import net.kurobako.quickstyle.component.FXIOApp
-import net.kurobako.quickstyle.component.FXIOApp.FXContext
-import net.kurobako.quickstyle.component.FXSchedulers._
+import net.kurobako.jfx.FXIOApp
+import net.kurobako.jfx._
+import net.kurobako.jfx.FXIOApp.FXContext
 import org.controlsfx.glyphfont.{FontAwesome, GlyphFont}
 import scalafx.Includes._
 import scalafx.scene.control.Alert.AlertType
@@ -32,8 +32,7 @@ object Application extends FXIOApp {
 
 
 	override def streamFX(args: List[String],
-						  fxCtx: FXIOApp.FXContext,
-						  fxStop: SignallingRef[IO, Boolean]): Stream[IO, Unit] = Stream.force(
+						  fxCtx: FXIOApp.FXContext): Stream[IO, Unit] = Stream.force(
 		for {
 			glyph <- IO(new FontAwesome(Resources.getResource("fontawesome.otf").openStream()))
 			term <- SignallingRef[IO, Boolean](false)
@@ -45,7 +44,7 @@ object Application extends FXIOApp {
 				effects = stages))
 		} yield Stream.eval_(IO {println("Starting")}) ++
 				(stages.dequeue.parJoinUnbounded
-					 .interruptWhen(fxStop)
+					 .interruptWhen(fxCtx.fxStop)
 					 .interruptWhen(term)
 					 .onError { case e =>
 						 Stream.eval(reportFatal(

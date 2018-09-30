@@ -17,7 +17,7 @@ lazy val quickstyle = project.in(file(".")).settings(
 	organization := "net.kurobako",
 	name := "quickstyle",
 	version := "0.1.0-SNAPSHOT",
-	scalaVersion := "2.12.6",
+	scalaVersion := "2.12.7",
 	scalacOptions ++= Seq(
 		"-target:jvm-1.8",
 		"-encoding", "UTF-8",
@@ -81,8 +81,8 @@ lazy val quickstyle = project.in(file(".")).settings(
 		"-P:bm4:no-map-id:y",
 	),
 	javacOptions ++= Seq(
-		"-target", "1.8",
-		"-source", "1.8",
+		"-target", "11",
+		"-source", "11",
 		"-Xlint:all"),
 	addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
 	addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
@@ -96,6 +96,7 @@ lazy val quickstyle = project.in(file(".")).settings(
 
 		"com.github.pathikrit" %% "better-files" % "3.4.0",
 		"net.kurobako" %% "better-monadic-files" % "0.1.0-SNAPSHOT",
+		"net.kurobako" %% "fs2-javafx" % "0.1.0-SNAPSHOT",
 		"net.kurobako.gesturefx" % "gesturefx" % "0.2.0",
 
 

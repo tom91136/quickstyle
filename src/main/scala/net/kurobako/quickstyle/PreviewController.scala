@@ -3,7 +3,6 @@ package net.kurobako.quickstyle
 import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.google.common.base.Strings
 import com.google.common.io.Resources
 import com.jakewharton.byteunits.BinaryByteUnit
 import fs2._
@@ -12,9 +11,10 @@ import fs2.io.file._
 import javafx.fxml.FXMLLoader
 import net.kurobako.bmf.FileM
 import net.kurobako.gesturefx.GesturePane
+import net.kurobako.jfx.Event._
+import net.kurobako.jfx._
 import net.kurobako.quickstyle.Application.AppContext
 import net.kurobako.quickstyle.PreviewController.{PreviewConfig, View}
-import net.kurobako.quickstyle.component.FXSchedulers._
 import org.controlsfx.glyphfont.FontAwesome.Glyph
 import org.controlsfx.glyphfont.GlyphFont
 import scalafx.Includes._
@@ -29,7 +29,8 @@ import scala.concurrent.duration._
 
 class PreviewController(ctx: AppContext[IO])(implicit cs: ContextShift[IO], timer: Timer[IO]) {
 
-
+	import ctx.fx._
+	
 	def effects(attach: Parent => IO[Unit],
 				detach: Parent => IO[Unit]): Stream[IO, Unit] = Stream.force(
 		for {
@@ -41,12 +42,12 @@ class PreviewController(ctx: AppContext[IO])(implicit cs: ContextShift[IO], time
 			_ <- sink.bind(view.inheritAgent.selected)((pc, inherit) =>
 				pc.copy(inheritAgent = inherit.exists(identity)))
 		} yield joinAndDrain(
-			eventF(view.resetViewport.onAction) >> Stream.eval_(IO(
+			event(view.resetViewport.onAction) >> Stream.eval_(IO(
 				view.viewport
 					.animate(300 ms)
 					.zoomTo(1, view.viewport.viewportCentre()))),
 			Stream.eval(loadFxml().flatMap { p => FXIO {view.sandbox.root = p} }),
-			eventF(view.close.onAction).flatMap(_ => Stream.eval(detach(view.root) *> close.set(true))),
+			event(view.close.onAction).flatMap(_ => Stream.eval(detach(view.root) *> close.set(true))),
 			sink.discrete.switchMap { config =>
 				def update(file: Either[String, FileM[IO]]) =
 					EitherT.fromEither[IO](file).semiflatMap(f => for {
@@ -143,7 +144,7 @@ object PreviewController {
 
 					// row 1
 					// TODO
-//					@:(g(0, 1), new Label("FXML")), @:(g(1, 1), fxmlUrl),
+					//					@:(g(0, 1), new Label("FXML")), @:(g(1, 1), fxmlUrl),
 				)
 			},
 			frame,
