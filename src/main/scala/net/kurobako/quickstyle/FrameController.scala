@@ -3,32 +3,38 @@ package net.kurobako.quickstyle
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import fs2.Stream
-import net.kurobako.quickstyle.Application.AppContext
-import net.kurobako.jfx._
 import net.kurobako.jfx.Event._
-import net.kurobako.jfx.FXIOApp.FXContextShift
+import net.kurobako.jfx.FXApp.FXContextShift
+import net.kurobako.jfx._
+import net.kurobako.quickstyle.Application.AppContext
 import net.kurobako.quickstyle.FrameController.View
 import scalafx.Includes._
+import scalafx.scene.Scene
 import scalafx.scene.control.{Menu, MenuBar, MenuItem, SplitPane}
 import scalafx.scene.layout.{Priority, VBox}
-import scalafx.scene.{Parent, Scene}
 import scalafx.stage.Stage
 
-class FrameController private(ctx: AppContext[IO])(implicit cs: ContextShift[IO], timer: Timer[IO]) {
+class FrameController private(stage: Stage, ctx: AppContext[IO])
+							 (implicit cs: ContextShift[IO], timer: Timer[IO]) {
 
-	import  ctx.fx._
-	
-	def effects(attach: Parent => IO[Unit]): Stream[IO, Unit] = {
+	import ctx.fx._
+
+
+	def effects(): Stream[IO, Unit] = {
 		for {
-			view <- Stream.eval(FXIO {new View})
-			_ <- Stream.eval(attach(view.root))
+			view <- Stream.eval(FXIO {
+				val view = new View
+				stage.title = "QuickStyle"
+				stage.scene = new Scene(view.root, 800, 600)
+				stage.show()
+				view
+			})
 			_ <- joinAndDrain(
 				Stream.eval(addPreview(view)),
 				event(view.exit.onAction).evalMap(_ => ctx.exitSignal.set(true)),
-				event(view.newWindow.onAction).evalMap(_ => FrameController.make(ctx)),
-				event(view.addSbs.onAction).mapAsync(Int.MaxValue)(_ => addPreview(view))
-			)
-			_ <- Stream.eval(IO {println("Died")})
+				event(view.newWindow.onAction).evalMap(_ => FrameController.make(ctx, new Stage)),
+				event(view.addSbs.onAction).mapAsync(Int.MaxValue)(_ => addPreview(view)),
+			).interruptWhen(event(stage.onCloseRequest).as(true)) ++ Stream.eval(IO {println("Died")})
 		} yield ()
 	}
 
@@ -45,18 +51,9 @@ class FrameController private(ctx: AppContext[IO])(implicit cs: ContextShift[IO]
 object FrameController {
 
 
-	def make(ctx: AppContext[IO], useMainStage: Boolean = false)
-			 (implicit cs: ContextShift[IO], 
-			  timer: Timer[IO],
-			  fxcs : FXContextShift, 
-			 ): IO[Unit] = ctx.effects.enqueue1(
-		new FrameController(ctx).effects(p => FXIO {
-			val stage = if (useMainStage) ctx.fx.mainStage  : Stage else new Stage
-			stage.title = "QuickStyle"
-			stage.scene = new Scene(p, 800, 600)
-			stage.show()
-		})
-	)
+	def make(ctx: AppContext[IO], stage: Stage)
+			(implicit cs: ContextShift[IO], timer: Timer[IO], fxcs: FXContextShift): IO[Unit] =
+		ctx.effects.enqueue1(new FrameController(stage, ctx).effects())
 
 	private class View {
 

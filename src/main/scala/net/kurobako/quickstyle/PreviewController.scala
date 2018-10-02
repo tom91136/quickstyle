@@ -35,7 +35,7 @@ class PreviewController(ctx: AppContext[IO])(implicit cs: ContextShift[IO], time
 				detach: Parent => IO[Unit]): Stream[IO, Unit] = Stream.force(
 		for {
 			close <- SignallingRef[IO, Boolean](false)
-			view <- FXIO(new View(ctx.glyphFont))
+			view <- FXIO(new View(ctx.glyphs))
 			_ <- attach(view.root) *> FXIO {view.cssUrl.requestFocus()}
 			sink <- EventSink[PreviewConfig](PreviewConfig())
 			_ <- sink.bind(view.cssUrl.text)((pc, url) => pc.copy(cssUrl = url))

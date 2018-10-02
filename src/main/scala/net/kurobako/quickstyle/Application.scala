@@ -6,9 +6,8 @@ import com.google.common.base.Throwables
 import com.google.common.io.Resources
 import fs2._
 import fs2.concurrent.{Enqueue, Queue, SignallingRef}
-import net.kurobako.jfx.FXIOApp
-import net.kurobako.jfx._
-import net.kurobako.jfx.FXIOApp.FXContext
+import net.kurobako.jfx.FXApp.FXContext
+import net.kurobako.jfx.{FXApp, _}
 import org.controlsfx.glyphfont.{FontAwesome, GlyphFont}
 import scalafx.Includes._
 import scalafx.scene.control.Alert.AlertType
@@ -17,42 +16,35 @@ import scalafx.scene.layout.{GridPane, Priority}
 import scalafx.stage.Window
 
 
-object Application extends FXIOApp {
+object Application extends FXApp {
 
-
-	//	Thread.setDefaultUncaughtExceptionHandler { (t, exception) =>
-	//		exception.printStackTrace()
-	//		sys.error(s"Fatal exception in UI thread ${t.getName}")
-	//	}
 
 	case class AppContext[M[_]](fx: FXContext,
-								glyphFont: GlyphFont,
+								glyphs: GlyphFont,
 								exitSignal: SignallingRef[IO, Boolean],
 								effects: Enqueue[M, Stream[M, Unit]])
 
-
 	override def streamFX(args: List[String],
-						  fxCtx: FXIOApp.FXContext): Stream[IO, Unit] = Stream.force(
+						  fx: FXApp.FXContext, stage: javafx.stage.Stage): Stream[IO, Unit] = Stream.force(
 		for {
 			glyph <- IO(new FontAwesome(Resources.getResource("fontawesome.otf").openStream()))
 			term <- SignallingRef[IO, Boolean](false)
 			stages <- Queue.synchronous[IO, Stream[IO, Unit]]
 			ctx <- IO.pure(AppContext[IO](
-				fx = fxCtx,
-				glyphFont = glyph,
+				fx = fx,
+				glyphs = glyph,
 				exitSignal = term,
 				effects = stages))
 		} yield Stream.eval_(IO {println("Starting")}) ++
 				(stages.dequeue.parJoinUnbounded
-					 .interruptWhen(fxCtx.fxStop)
+					 .interruptWhen(fx.halt)
 					 .interruptWhen(term)
 					 .onError { case e =>
 						 Stream.eval(reportFatal(
-							 window = fxCtx.mainStage,
 							 exception = e,
 							 signal = term,
 							 reason = "Application crashed".some))
-					 } concurrently Stream.eval_(FrameController.make(ctx, useMainStage = true))) ++
+					 } concurrently Stream.eval_(FrameController.make(ctx, stage))) ++
 				Stream.eval_(IO {println("Stopping")})
 	)
 
@@ -85,12 +77,12 @@ object Application extends FXIOApp {
 		alert.showAndWait()
 	}
 
-	def reportFatal(window: Window,
-					exception: Throwable,
+	def reportFatal(exception: Throwable,
 					signal: SignallingRef[IO, Boolean],
+					window: Option[Window] = None,
 					reason: Option[String] = None): IO[Unit] = FXIO {
 		val alert = new Alert(AlertType.Error) {
-			initOwner(window)
+			window.foreach(initOwner(_))
 			title = "Fatal exception"
 			headerText = "A fatal exception has occurred"
 			contentText = reason.getOrElse(exception.getMessage)
